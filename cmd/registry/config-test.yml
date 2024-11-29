@@ -1,0 +1,27 @@
+version: 0.1
+log:
+  fields:
+    service: registry
+  accesslog:
+    disabled: true
+  level: error
+storage:
+  cache:
+    blobdescriptor: inmemory
+  filesystem:
+    rootdirectory: /var/lib/registry
+  tag:
+    concurrencylimit: 8
+http:
+  addr: :80
+  headers:
+    X-Content-Type-Options: [nosniff]
+# auth:
+#   htpasswd:
+#     realm: basic-realm
+#     path: /etc/registry
+health:
+  storagedriver:
+    enabled: true
+    interval: 10s
+    threshold: 3
