@@ -1,16 +1,12 @@
 package handlers
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"mime"
-	"net"
 	"net/http"
-	"os/exec"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/distribution/distribution/v3"
 	"github.com/distribution/distribution/v3/internal/dcontext"
@@ -24,7 +20,6 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/patrickmn/go-cache"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -34,8 +29,6 @@ const (
 	maxManifestBodySize = 4 * 1024 * 1024
 	imageClass          = "image"
 )
-
-var imageCache = cache.New(144*time.Hour, 145*time.Hour)
 
 type storageType int
 
@@ -47,41 +40,9 @@ const (
 	numStorageTypes                        // 4
 )
 
-func imageHandler(httpMethod, host, urlPath string) {
-	hostWithoutPort := strings.Split(host, ":")[0]
-	if httpMethod != "HEAD" || net.ParseIP(hostWithoutPort) != nil {
-		return
-	}
-	imagePath := strings.TrimPrefix(urlPath, "/v2")
-	image := hostWithoutPort + strings.ReplaceAll(imagePath, "/manifests/", ":")
-	_, pulled := imageCache.Get(image)
-	if !pulled {
-		fmt.Println("-----------------------:", image, "-------------------------------")
-		cmd := exec.Command("skopeo", "copy", image)
-		stdout, _ := cmd.StdoutPipe()
-		stderr, _ := cmd.StderrPipe()
-		cmd.Start()
-		scanner := bufio.NewScanner(stdout)
-		for scanner.Scan() {
-			fmt.Println(scanner.Text())
-		}
-
-		scanner = bufio.NewScanner(stderr)
-		for scanner.Scan() {
-			fmt.Println(scanner.Text())
-		}
-
-		cmd.Wait()
-
-	}
-	imageCache.SetDefault(image, true)
-
-}
-
 // manifestDispatcher takes the request context and builds the
 // appropriate handler for handling manifest requests.
 func manifestDispatcher(ctx *Context, r *http.Request) http.Handler {
-	go imageHandler(r.Method, r.Host, r.URL.Path)
 	manifestHandler := &manifestHandler{
 		Context: ctx,
 	}

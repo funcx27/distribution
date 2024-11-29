@@ -184,3 +184,12 @@ help:
 	@echo ""
 	@echo "Go binaries:   $(BINARIES)"
 	@echo "Docker image: $(IMAGE_NAME)"
+
+amd64:
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags '-w -s' -gcflags="all=-trimpath=${PWD}" -asmflags="all=-trimpath=${PWD}" -tags "containers_image_openpgp exclude_graphdriver_btrfs containers_image_openpgp" -o bin/registry-amd64  cmd/registry/main.go
+	docker build --load -t registry:3  -f Dockerfile-new bin
+	docker rm -f test; docker run --name test -e IMAGE_COPY_MODE=async -d -p80:80 registry:3
+	#  gzip bin/registry-amd64
+arm64:
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build  -tags "containers_image_openpgp exclude_graphdriver_btrfs containers_image_openpgp" -o bin/registry-arm64  cmd/registry/main.go
+
