@@ -3,8 +3,10 @@ package registry
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/distribution/distribution/v3/internal/dcontext"
+	"github.com/distribution/distribution/v3/registry/handlers"
 	"github.com/distribution/distribution/v3/registry/storage"
 	"github.com/distribution/distribution/v3/registry/storage/driver/factory"
 	"github.com/distribution/distribution/v3/version"
@@ -16,6 +18,8 @@ var showVersion bool
 func init() {
 	RootCmd.AddCommand(ServeCmd)
 	RootCmd.AddCommand(GCCmd)
+	GCCmd.Flags().StringVarP(&project, "project", "p", "", "project path for cleaning")
+	GCCmd.Flags().IntVarP(&retainImageNums, "retain-tags", "", 0, "retain tags per-image")
 	GCCmd.Flags().BoolVarP(&dryRun, "dry-run", "d", false, "do everything except remove the blobs")
 	GCCmd.Flags().BoolVarP(&removeUntagged, "delete-untagged", "m", false, "delete manifests that are not currently referenced via tag")
 	RootCmd.Flags().BoolVarP(&showVersion, "version", "v", false, "show the version and exit")
@@ -37,8 +41,10 @@ var RootCmd = &cobra.Command{
 }
 
 var (
-	dryRun         bool
-	removeUntagged bool
+	dryRun          bool
+	retainImageNums int
+	removeUntagged  bool
+	project         string
 )
 
 // GCCmd is the cobra command that corresponds to the garbage-collect subcommand
@@ -47,6 +53,9 @@ var GCCmd = &cobra.Command{
 	Short: "`garbage-collect` deletes layers not referenced by any manifests",
 	Long:  "`garbage-collect` deletes layers not referenced by any manifests",
 	Run: func(cmd *cobra.Command, args []string) {
+		if len(args) == 0 {
+			args = append(args, "/etc/distribution/config.yml")
+		}
 		config, err := resolveConfiguration(args)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "configuration error: %v\n", err)
@@ -60,6 +69,13 @@ var GCCmd = &cobra.Command{
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "unable to configure logging with config: %s", err)
 			os.Exit(1)
+		}
+
+		if retainImageNums > 0 && config != nil {
+			_, err := handlers.CleanImages(config, project, retainImageNums, time.Hour*12, dryRun)
+			if err != nil {
+				os.Exit(1)
+			}
 		}
 
 		driver, err := factory.Create(ctx, config.Storage.Type(), config.Storage.Parameters())
